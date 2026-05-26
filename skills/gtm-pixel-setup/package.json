@@ -1,0 +1,15 @@
+{
+  "name": "gtm-pixel-setup",
+  "version": "1.0.0",
+  "description": "Claude Code skill that installs the Axon tracking pixel via the Google Tag Manager API in ~5 minutes. No Chrome extension needed. The advertiser signs in with Google once; the rest is automated.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "playwright": "^1.59.1"
+  }
+}

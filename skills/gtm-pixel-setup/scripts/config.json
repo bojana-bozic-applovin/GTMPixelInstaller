@@ -1,0 +1,11 @@
+{
+  "clientId": "594681556243-grc40h1kfprlp3a47hf39bfp6drj8g6k.apps.googleusercontent.com",
+  "tokenProxyUrl": "https://axon-gtm-token-proxy-594681556243.us-central1.run.app",
+  "scopes": [
+    "https://www.googleapis.com/auth/tagmanager.edit.containers",
+    "https://www.googleapis.com/auth/tagmanager.edit.containerversions",
+    "https://www.googleapis.com/auth/tagmanager.delete.containers",
+    "https://www.googleapis.com/auth/tagmanager.publish",
+    "https://www.googleapis.com/auth/tagmanager.readonly"
+  ]
+}
