@@ -366,16 +366,17 @@ This split matters: an event can fire green in Pixel Helper but still be deduped
 
 ---
 
-## Phase 5 (optional): Recommended events
+## Phase 5: Recommended events — not auto-installed
 
-After all required events are verified, offer to add:
-`add_payment_info`, `sign_up`, `login`, `search`, `view_cart`, `remove_from_cart`, `subscribe`
+This skill installs the **five required events only** (`page_view`, `view_item`,
+`add_to_cart`, `begin_checkout`, `purchase`). Additional recommended events
+(`add_payment_info`, `view_cart`, `remove_from_cart`, `search`, `sign_up`,
+`login`, `subscribe`) are **not** set up automatically — there is no
+`--add-recommended` flag. Do not attempt to run one.
 
-Ask: "Your site's dataLayer would need to already push these events. Want to check which of these your site fires?"
-
-If the advertiser confirms any fire, re-run with `--add-recommended event1,event2,...`. The script will create a trigger and tag per event and publish a new version.
-
-**Do not create tags for events the dataLayer doesn't push** — they'll fire with empty payloads.
+If an advertiser asks for these, they can be added manually in GTM (a Custom
+Event trigger + Custom HTML tag per event, calling `axon('track','<event>',{…})`
+with the fields from the [Axon Events & Objects reference](https://support.axon.ai/en/growth/promoting-your-websites/axon-pixel-integration/events-and-objects)), or flagged as a future enhancement to this skill.
 
 ---
 
