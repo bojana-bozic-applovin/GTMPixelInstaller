@@ -152,6 +152,31 @@ export function pageViewTagHtml() {
   return `<script>axon("track","page_view",{});</script>`;
 }
 
+// gtag -> dataLayer bridge. Shopline/Shoplazza fire GA4 ecommerce via
+// gtag('event','<name>',{currency,value,items,...}), which lands in dataLayer
+// as a positional argument-array (['event','view_item',{...}]) that GTM Custom
+// Event triggers cannot match. This tag (fired on init) translates those into
+// {event:'axon_<name>', ecommerce:{...}} pushes that the Axon triggers DO match.
+// The GA4 params object already carries items/currency/value/transaction_id/
+// tax/shipping at the top level, so it maps straight onto our `ecommerce` shape.
+export function gtagBridgeTagHtml() {
+  return `<script>
+(function(){
+  if(window.__axonGtagBridge)return;window.__axonGtagBridge=1;
+  var MAP={view_item:1,add_to_cart:1,begin_checkout:1,purchase:1};
+  var dl=window.dataLayer=window.dataLayer||[];
+  var orig=dl.push;
+  function bridge(a){
+    if(a&&a[0]==='event'&&MAP[a[1]]&&a[2]&&typeof a[2]==='object'){
+      orig.call(dl,{event:'axon_'+a[1],ecommerce:a[2]});
+    }
+  }
+  for(var i=0;i<dl.length;i++){try{bridge(dl[i]);}catch(e){}}
+  dl.push=function(){for(var j=0;j<arguments.length;j++){try{bridge(arguments[j]);}catch(e){}}return orig.apply(dl,arguments);};
+})();
+</script>`;
+}
+
 export function viewItemTagHtml({ eventName, fieldMap } = {}) {
   return ecommerceTagHtml({
     eventName,

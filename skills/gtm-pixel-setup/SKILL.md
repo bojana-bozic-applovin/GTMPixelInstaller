@@ -13,9 +13,30 @@ Required events the integration must fire:
 `page_view` · `view_item` · `add_to_cart` · `begin_checkout` · `purchase`
 
 Integration tracks:
-- **`gtm-only`**: All 5 events via GTM. Used for WooCommerce, BigCommerce, Magento, and custom sites.
+- **`gtm-only`**: All 5 events via GTM. Used for WooCommerce, BigCommerce, Magento, Shopline, Shoplazza, and custom sites.
 - **`shopify-headless`**: GTM handles page_view, view_item, add_to_cart on the storefront. The Axon Shopify App handles begin_checkout and purchase on checkout.shopify.com (GTM can't reach that domain). Used for all Shopify stores with hosted checkout — standard Liquid and Hydrogen/Next.js alike.
 - **`lead-gen`**: GTM handles page_view + generate_lead only. No ecommerce events.
+
+**gtag-bridge platforms (Shopline & Shoplazza):** these run `gtm-only` but fire their
+ecommerce through GA4 `gtag('event','view_item',{...})` argument-arrays instead of
+`dataLayer.push({event:...})`. GTM Custom Event triggers can't match arg-arrays, so the
+installer auto-adds an **`Axon -- gtag dataLayer Bridge`** tag (on the init trigger) that
+re-emits those as `{event:'axon_<name>', ecommerce:{...}}`. All four ecommerce triggers
+then listen on the bridged `axon_*` names — including begin_checkout/purchase, which fire
+on the store's own GA4 events rather than a checkout URL. This is fully automatic; the
+advertiser does nothing extra. (`detected.gtagBridge: true` in the output flags it.)
+
+### Platform test matrix
+
+| Platform | Fingerprint | Track | Ecommerce source | Notes |
+|---|---|---|---|---|
+| Shopify | `cdn.shopify.com`, `.myshopify.com` | `shopify-headless`* | dataLayer / app | *or `gtm-only` if self-hosted checkout |
+| WooCommerce | `wp-content/plugins/woocommerce` | `gtm-only` | dataLayer | |
+| BigCommerce | `bigcommerce.com/s-`, `bc-sf-filter` | `gtm-only` | dataLayer | |
+| Magento | `Mage.Cookies`, `Magento_Theme` | `gtm-only` | dataLayer | |
+| **Shopline** | `cdn.shoplineapp.com`, `shoplytics`, `myshopline.com` | `gtm-only` | **GA4 gtag → bridge** | survives custom domains (verified on `.tw`/`.hk`) |
+| **Shoplazza** | `window.SHOPLAZZA`, `shoplazza-product-snippet` | `gtm-only` | **GA4 gtag → bridge** | exposes `gtag('set','user_data',{...})` |
+| Custom | — | `gtm-only` | dataLayer (sniffed) | falls to `datalayer_unknown` if names not detected |
 
 Do not mark setup complete until at least 4 of 5 events are confirmed via the verifier (or all 5 on `gtm-only`).
 

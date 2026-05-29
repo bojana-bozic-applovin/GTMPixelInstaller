@@ -147,6 +147,13 @@ function defaultNaming(site) {
     eventNames.add_to_cart = 'dl_add_to_cart';
     eventNames.begin_checkout = 'dl_begin_checkout';
     eventNames.purchase = 'dl_purchase';
+  } else if (site.usesGtagEcommerce) {
+    // Shopline/Shoplazza: the gtag->dataLayer bridge tag re-emits GA4 gtag
+    // ecommerce events under these namespaced names. Triggers listen on them.
+    eventNames.view_item = 'axon_view_item';
+    eventNames.add_to_cart = 'axon_add_to_cart';
+    eventNames.begin_checkout = 'axon_begin_checkout';
+    eventNames.purchase = 'axon_purchase';
   }
   return { eventNames, fieldMap };
 }
@@ -340,6 +347,14 @@ async function install(args) {
     ? await loadSnifferNaming(args.eventNamesJson)
     : defaultNaming(site);
 
+  // Bridge platforms (Shopline/Shoplazza) fire GA4 gtag ecommerce events. When we
+  // use the bridged `axon_*` names, install the gtag->dataLayer bridge tag and fire
+  // all four ecommerce events off the platform's own GA4 events (Custom Event
+  // triggers on the bridged names) rather than URL triggers — we can't rely on a
+  // known order-confirmation URL for these platforms.
+  const useGtagBridge = track !== 'lead-gen'
+    && /^axon_/.test(eventNames.view_item || '');
+
   // For custom sites where we can't determine event naming, exit and let Claude hand off to the dev.
   if (!args.leadGen && !args.eventNamesJson && site.platform === 'custom') {
     const knownNames = ['view_item', 'add_to_cart', 'begin_checkout', 'purchase',
@@ -371,7 +386,8 @@ async function install(args) {
       plan: {
         workspace: `axon-setup-<timestamp>`,
         triggersToCreate: track === 'gtm-only' ? 6 : 4,
-        tagsToCreate: (track === 'gtm-only' ? 6 : 4) + (args.atcHook ? 1 : 0),
+        tagsToCreate: (track === 'gtm-only' ? 6 : 4) + (args.atcHook ? 1 : 0) + (useGtagBridge ? 1 : 0),
+        gtagBridge: useGtagBridge,
       },
     }, 0);
   }
@@ -458,14 +474,25 @@ async function install(args) {
       name: 'Axon -- Add to Cart Event', eventName: eventNames.add_to_cart,
     }));
 
-    const co = CHECKOUT_PATTERNS[site.platform] || CHECKOUT_PATTERNS.custom;
     if (track === 'gtm-only') {
-      trig.checkout = await gtm.createTrigger(accountId, containerId, workspaceId, T.pageUrlContainsTrigger({
-        name: 'Axon -- Checkout Page', urlSubstring: co.checkout,
-      }));
-      trig.confirm = await gtm.createTrigger(accountId, containerId, workspaceId, T.pageUrlContainsTrigger({
-        name: 'Axon -- Order Confirmation', urlSubstring: co.confirm,
-      }));
+      if (useGtagBridge) {
+        // gtag platforms (Shopline/Shoplazza) fire real GA4 begin_checkout/purchase
+        // events; trigger on those (via the bridge) rather than a URL we'd have to guess.
+        trig.checkout = await gtm.createTrigger(accountId, containerId, workspaceId, T.customEventTrigger({
+          name: 'Axon -- Begin Checkout Event', eventName: eventNames.begin_checkout,
+        }));
+        trig.confirm = await gtm.createTrigger(accountId, containerId, workspaceId, T.customEventTrigger({
+          name: 'Axon -- Purchase Event', eventName: eventNames.purchase,
+        }));
+      } else {
+        const co = CHECKOUT_PATTERNS[site.platform] || CHECKOUT_PATTERNS.custom;
+        trig.checkout = await gtm.createTrigger(accountId, containerId, workspaceId, T.pageUrlContainsTrigger({
+          name: 'Axon -- Checkout Page', urlSubstring: co.checkout,
+        }));
+        trig.confirm = await gtm.createTrigger(accountId, containerId, workspaceId, T.pageUrlContainsTrigger({
+          name: 'Axon -- Order Confirmation', urlSubstring: co.confirm,
+        }));
+      }
     }
   }
 
@@ -478,6 +505,18 @@ async function install(args) {
     firingTriggerId: [trig.init.triggerId],
     priority: 100,
   }));
+
+  // Shopline/Shoplazza: translate GA4 gtag() ecommerce events into the
+  // {event:'axon_*', ecommerce:{...}} dataLayer pushes the Axon triggers match.
+  // Higher priority than Init so the dataLayer.push wrapper installs first.
+  if (useGtagBridge) {
+    await gtm.createTag(accountId, containerId, workspaceId, T.customHtmlTag({
+      name: 'Axon -- gtag dataLayer Bridge',
+      html: T.gtagBridgeTagHtml(),
+      firingTriggerId: [trig.init.triggerId],
+      priority: 110,
+    }));
+  }
   await gtm.createTag(accountId, containerId, workspaceId, T.customHtmlTag({
     name: 'Axon -- page_view',
     html: T.pageViewTagHtml(),
@@ -564,6 +603,8 @@ async function install(args) {
       isHostedCheckout: site.isHostedCheckout,
       usesStape: site.usesStape,
       usesElevar: site.usesElevar,
+      usesGtagEcommerce: site.usesGtagEcommerce,
+      gtagBridge: useGtagBridge,
       isSPA: site.isSPA,
       spaKind: site.spaKind,
       gtmContainerIds: site.gtmContainerIds,
@@ -574,7 +615,9 @@ async function install(args) {
       track === 'shopify-headless'
         ? `1. Install Axon Shopify App: ${shopifyAppLink}
 2. After it shows Active, run: node setup.mjs --verify, and paste verifier into DevTools on storefront AND checkout.shopify.com`
-        : `Run: node setup.mjs --verify, paste verifier into DevTools on your storefront, walk the full funnel including a test purchase.`,
+        : useGtagBridge
+          ? `Run: node setup.mjs --verify, paste verifier into DevTools on your storefront, then walk the full funnel including a test purchase. NOTE: ${site.platform} fires ecommerce via GA4 gtag() events that the Axon bridge translates — confirm view_item, add_to_cart, begin_checkout AND purchase each fire (the latter two depend on this store emitting GA4 begin_checkout/purchase events; if either is missing, capture names with --sniff and re-run with --event-names-json).`
+          : `Run: node setup.mjs --verify, paste verifier into DevTools on your storefront, walk the full funnel including a test purchase.`,
   }, 0);
 
   } catch (err) {

@@ -53,7 +53,7 @@ async function fetchHtml(url, errors) {
   }
 }
 
-function detectPlatform(html) {
+export function detectPlatform(html) {
   if (/cdn\.shopify\.com|\.myshopify\.com|window\.Shopify\b|<meta[^>]+shopify/i.test(html)) {
     return 'shopify';
   }
@@ -66,7 +66,24 @@ function detectPlatform(html) {
   if (/Mage\.Cookies|mage\/requirejs-config|Magento_Theme/i.test(html)) {
     return 'magento';
   }
+  // Shopline: CDN + first-party analytics (shoplytics) survive on custom domains too.
+  if (/cdn\.shoplineapp\.com|\.shoplineapp\.com|\bshoplytics\b|myshopline\.com/i.test(html)) {
+    return 'shopline';
+  }
+  // Shoplazza: runtime global + storefront CSS classes. Avoid bare "shoplazza"
+  // so vendor-mention pages (e.g. sites linking shoplazza.cn) don't false-match.
+  if (/window\.SHOPLAZZA\b|shoplazza-product-snippet|myshoplaza\.com|cdn\.shoplazza\.com/i.test(html)) {
+    return 'shoplazza';
+  }
   return 'custom';
+}
+
+// Shopline & Shoplazza fire ecommerce through GA4 gtag() argument-arrays
+// (e.g. gtag('event','view_item',{...})) instead of dataLayer.push({event,...}).
+// GTM Custom Event triggers can't match arg-arrays, so these platforms need the
+// gtag->dataLayer bridge tag. Keyed off platform since that's what we verified.
+export function usesGtagEcommerceFor(platform) {
+  return platform === 'shopline' || platform === 'shoplazza';
 }
 
 function extractShopifyShop(html) {
@@ -183,6 +200,7 @@ export async function detectSite(siteUrl) {
     sampleProductUrl: null,
     usesStape: false,
     usesElevar: false,
+    usesGtagEcommerce: false,
     dataLayerEventNames: [],
     title: '',
     errors,
@@ -193,6 +211,7 @@ export async function detectSite(siteUrl) {
   try {
     if (homeHtml) {
       result.platform = detectPlatform(homeHtml);
+      result.usesGtagEcommerce = usesGtagEcommerceFor(result.platform);
       result.shopifyShop = result.platform === 'shopify' ? extractShopifyShop(homeHtml) : null;
       result.isHostedCheckout = detectHostedCheckout(result.platform, homeHtml);
       result.gtmContainerIds = extractGtmIds(homeHtml);
