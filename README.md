@@ -1,99 +1,61 @@
 # Axon Pixel Installer
 
-Install the Axon tracking pixel on your website in ~5 minutes using Claude Code and the Google Tag Manager API. No Chrome extension required.
-
----
+Install the Axon tracking pixel on your site in ~5 minutes with Claude Code and
+the Google Tag Manager API. No Chrome extension required.
 
 ## What you'll need
-
-**Axon Ads Manager**
-- An active Axon advertiser account
-- Your **Axon event key** — found in Axon Ads Manager → Account Settings → Keys
-  (looks like `971e76ba-6851-4838-a7ea-60314ee67a6b`)
-
-**Google Tag Manager**
-- A GTM **Web container** already installed on your site
-- A Google account with **Edit and Publish** permission on that container
-  (check in GTM → Admin → User Management)
-
-**Your machine**
-- [Claude Code](https://claude.ai/code) installed
-- Node.js 20+ — Claude will install it automatically if it's missing
-
-**Shopify stores only**
-- Shopify admin access to install the Axon Shopify App (handles checkout + purchase events)
-- If your store is headless (Hydrogen or Next.js), GTM must already be on your frontend before running this
-
----
+- **Axon event key** — Axon Ads Manager → Account Settings → Keys
+- **Your domain URL**
+- **Edit + Publish access to your GTM container.** No GTM yet? Claude can create
+  one — you'll just paste a short snippet into your site. Step-by-step
+  instructions are provided.
+- **Claude Code** + **Node.js 20+** (Claude installs Node if it's missing)
+- **To verify:** Chrome (for the Axon Pixel Helper); placing one test order to
+  confirm `purchase` is recommended.
+- **Shopify only** (not needed for WooCommerce, BigCommerce, Magento, Shopline,
+  Shoplazza, or custom sites — those run entirely through GTM):
+  - **Admin access to your Shopify store** — to install the Axon Shopify App
+    (Claude gives you the link during setup; it handles checkout + purchase).
+  - **Headless storefronts (Hydrogen/Next.js) with no GTM yet:** Claude creates
+    the container and hands over the exact snippet — you or your developer add it
+    to the site's code and deploy.
 
 ## How to run it
-
 1. Open this project in Claude Code.
-2. Say: **"Install the Axon pixel."**
-3. Claude will ask for your event key and site URL, then handle everything else.
+2. Say **"Install the Axon pixel."**
+3. Give Claude your event key and site URL. It detects everything, shows a summary
+   for your approval, then creates the tags and publishes.
 
-That's it. Claude runs a pre-flight check first so you can confirm what it detected before any changes are made.
+## Supported platforms
+Shopify, WooCommerce, BigCommerce, Magento, Shopline, Shoplazza, and custom sites.
+Claude auto-detects the platform and picks the right setup:
 
----
+| Track | Platforms | How events fire |
+|---|---|---|
+| `gtm-only` | WooCommerce, BigCommerce, Magento, Shopline, Shoplazza, custom | All 5 via GTM |
+| `shopify-headless` | Shopify (hosted checkout) | page_view / view_item / add_to_cart via GTM; begin_checkout / purchase via the Axon Shopify App |
+| `lead-gen` | SaaS / lead-gen | page_view + generate_lead |
 
-## What Claude does
+## dataLayer naming — auto-detected
+Standard GA4, Stape (`*_stape`), Elevar (`dl_*`), and GA4 `gtag()` platforms like
+Shopline/Shoplazza (auto-bridged). Custom names → Claude asks your dev and matches
+them. No manual config.
 
-| Phase | What happens |
-|---|---|
-| Pre-flight | Detects your platform, GTM container, and dataLayer naming. Shows a summary for your approval before writing anything. |
-| Setup | Authenticates with your Google account (browser opens once), creates triggers and tags in a fresh GTM workspace, publishes a new container version. |
-| Shopify App (if needed) | Provides a direct install link for the Axon Shopify App to cover checkout and purchase events. |
-| Verification | Walks you through confirming each event fires using the Axon Pixel Helper Chrome extension. |
+## Verifying
+Required events: `page_view` · `view_item` · `add_to_cart` · `begin_checkout` · `purchase`
 
----
-
-## Integration tracks
-
-| Track | Used for | Events via GTM | Events via Shopify App |
-|---|---|---|---|
-| `gtm-only` | WooCommerce, BigCommerce, Magento, custom sites | All 5 required events | — |
-| `shopify-headless` | All Shopify stores with hosted checkout | page_view, view_item, add_to_cart | begin_checkout, purchase |
-| `lead-gen` | SaaS / lead-gen sites | page_view, generate_lead | — |
-
-Claude selects the right track automatically based on your site.
-
----
-
-## Auto-detected dataLayer naming
-
-Claude handles these naming conventions without any manual configuration:
-
-| Stack | Event names used |
-|---|---|
-| Standard GA4 | `view_item`, `add_to_cart`, `begin_checkout`, `purchase` |
-| Stape server-side GTM | `view_item_stape`, `add_to_cart_stape`, etc. |
-| Elevar | `dl_view_item`, `dl_add_to_cart`, etc. |
-
-If your site uses custom event names, Claude will ask your developer for the names and configure the triggers to match.
-
----
-
-## Required events
-
-`page_view` · `view_item` · `add_to_cart` · `begin_checkout` · `purchase`
-
-Setup is complete when all required events show green or orange in the Axon Pixel Helper.
-
----
+Claude walks you through the **Axon Pixel Helper** (tap to confirm each event),
+recommends one test order for `purchase`, then has you check the **Axon dashboard**
+(~30-min lag) to confirm Axon is receiving them.
 
 ## Troubleshooting
-
 | Symptom | Fix |
 |---|---|
-| "This app isn't verified" in Google sign-in | Click **Advanced → Go to app (unsafe)** to continue |
-| Wrong GTM container detected | Tell Claude your GTM container ID (e.g. `GTM-XXXXXX`) and it will re-run with that |
-| Events not firing after publish | Run the dataLayer sniffer — Claude will walk you through it |
-| `add_to_cart` missing, others fire | Tell Claude — it will add an XHR interceptor tag and republish |
-| "Axon Pixel already installed" error in Ads Manager | Your domain is linked to a different Axon account — submit a ticket at [support.axon.ai](https://support.axon.ai) |
-| Shopify App events not showing in Ads Manager | Wait up to 30 minutes after install; use the Pixel Helper for real-time confirmation |
+| No GTM on your site | Claude can create a container and give you a snippet to paste |
+| "App isn't verified" in Google sign-in | Advanced → Go to app (unsafe) |
+| Wrong container detected | Give Claude your `GTM-XXXXXX` ID |
+| Events not firing after publish | Claude runs the dataLayer sniffer |
+| `add_to_cart` missing, others fire | Claude adds an XHR hook and republishes |
+| "Axon Pixel already installed" in Ads Manager | Domain linked to another Axon account — ticket at [support.axon.ai](https://support.axon.ai) |
 
----
-
-## Skill documentation
-
-Full technical reference for the GTM setup skill is in [`skills/gtm-pixel-setup/README.md`](skills/gtm-pixel-setup/README.md).
+Full skill reference: [`skills/gtm-pixel-setup/README.md`](skills/gtm-pixel-setup/README.md)
