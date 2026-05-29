@@ -229,6 +229,32 @@ axon('track','generate_lead',p);
 </script>`;
 }
 
+// ---- GTM container install snippet -----------------------------------------
+
+// The standard Google Tag Manager on-page snippet, parameterized by the public
+// container ID (GTM-XXXX). Returned as { head, body } so the advertiser can
+// paste each into the right place. Used by the custom-site flow after we
+// auto-create a container for a merchant who has no GTM on their site yet.
+export function gtmInstallSnippet(publicId) {
+  if (typeof publicId !== 'string' || !/^GTM-[A-Z0-9]+$/.test(publicId)) {
+    throw new Error(`gtmInstallSnippet: invalid container id ${JSON.stringify(publicId)}`);
+  }
+  const head =
+`<!-- Google Tag Manager -->
+<script>(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','${publicId}');</script>
+<!-- End Google Tag Manager -->`;
+  const body =
+`<!-- Google Tag Manager (noscript) -->
+<noscript><iframe src="https://www.googletagmanager.com/ns.html?id=${publicId}"
+height="0" width="0" style="display:none;visibility:hidden"></iframe></noscript>
+<!-- End Google Tag Manager (noscript) -->`;
+  return { head, body };
+}
+
 // ---- Trigger builders ------------------------------------------------------
 
 export function initializationTrigger(name = 'Axon -- Initialization') {

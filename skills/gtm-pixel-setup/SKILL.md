@@ -182,7 +182,7 @@ node scripts/setup.mjs --event-key "<EVENT_KEY>" --site-url "<SITE_URL>" [--lead
 The script will:
 1. Authenticate the advertiser's Google account (OAuth 2.0, local-loopback — browser opens automatically).
 2. Fetch and detect the advertiser's site — platform, GTM container IDs, product URL pattern, Stape usage, dataLayer event-name hints.
-3. Find the matching GTM container. If multiple containers or ambiguous, exit with a structured JSON error asking Claude to pick.
+3. Find the matching GTM container. If multiple/ambiguous, exit asking Claude to pick. If **no GTM is on the site**, exit asking whether to create a container (`--create-container`) or use an existing ID (`--public-id`); after creation it hands back a snippet to paste and re-checks it's live on the next run.
 4. Check the user has Edit + Publish permission on that container. If not, bail with a clear error.
 5. Create a dedicated workspace (`axon-setup-<timestamp>`).
 6. Generate triggers + Custom HTML tags using the detected event names.
@@ -206,7 +206,7 @@ The script emits:
     "shopifyAppLink": "https://apps.shopify.com/axon?shop=houswise.myshopify.com",
     "detected": { "platform": "shopify", "gtmContainerIds": ["GTM-XXX"], "usesStape": true },
     "error": { "message": "...", "kind": "no_edit_permission" | "no_container_match" | "multiple_containers" | "oauth_denied" | "..." },
-    "needInput": { "kind": "container" | "cleanup" | "datalayer_unknown", "options": [...] }
+    "needInput": { "kind": "container" | "no_gtm_container" | "select_account" | "paste_snippet" | "snippet_not_detected" | "cleanup" | "datalayer_unknown", "options": [...] }
   }
   ```
 
@@ -214,7 +214,19 @@ The script emits:
 
 If `status === "need_input"`:
 
-- `kind: "container"` — either multiple containers (list them and ask which) or auto-detection failed (options array empty). Ask: "I wasn't able to detect your GTM container automatically. What's your GTM container ID? It looks like `GTM-XXXXXX` and can be found in the top right of your GTM dashboard." Re-run with `--public-id <GTM-XXXXXX>`.
+- `kind: "container"` — multiple matching containers (list them and ask which). Re-run with `--account-id <id> --container-id <id>`.
+- `kind: "no_gtm_container"` — **no GTM on the site at all** (common for custom-built sites). Ask the advertiser which way they want to go: "I couldn't find Google Tag Manager on your site. I can **create a new GTM container** for you in your Google account (you'll paste one snippet into your site), or if you already have one, give me the **container ID** (`GTM-XXXXXX`, top-right of your GTM dashboard). Which would you prefer?"
+  - **Create** → re-run with `--create-container`.
+  - **Existing ID** → re-run with `--public-id <GTM-XXXXXX>`.
+- `kind: "select_account"` — creating a container but the login has more than one GTM account. List `options[].accountName` and ask which to create it in. Re-run with `--create-container --account-id <id>`.
+- `kind: "paste_snippet"` — we just created container `needInput.publicId`. Give the advertiser the snippet to paste, **tailored to their stack** using `needInput.spaKind` / `detected.platform`:
+  - Present `needInput.snippet.head` ("paste immediately after the opening `<head>` tag, as high as possible") and `needInput.snippet.body` ("paste immediately after the opening `<body>` tag").
+  - If `spaKind === "next"`: "In Next.js, add it via `@next/third-parties/google` `<GoogleTagManager gtmId="…" />` in `app/layout.tsx`, or a `<Script>` in the root layout."
+  - If `spaKind === "nuxt"`: "In Nuxt, use the `@zadigetvoltaire/nuxt-gtm` module or add it in `nuxt.config` / `app.vue`."
+  - If `spaKind === "hydrogen"`: "In Hydrogen, inject the snippet in `app/root.tsx`."
+  - Otherwise: "Paste into your site template's `<head>` and `<body>` (or your theme's header/footer include)."
+  - Tell them to publish/deploy, then come back. Re-run with `--public-id <publicId>` — we'll confirm it's live and finish.
+- `kind: "snippet_not_detected"` — the targeted container isn't visible on the site yet. Tell them: "I couldn't see `<publicId>` live on your site yet — make sure the snippet is published and caches are cleared, then let me know." Re-run with `--public-id <publicId>` to re-check. Only if they're confident GTM is installed in a way we can't read from page source (rare), re-run adding `--skip-snippet-check`.
 - `kind: "cleanup"` — existing Axon tags found. Ask whether to replace (`--cleanup replace`), skip (`--cleanup skip`), or abort. Re-run with the chosen flag.
 - `kind: "datalayer_unknown"` — custom site with no recognizable dataLayer event names. Do not run the sniffer. Instead, send the advertiser this message and stop until they come back with the answer:
 
@@ -292,10 +304,12 @@ Tell the advertiser:
 > |---|---|---|
 > | Axon -- Initialization | Initialization | (no filter — fires on all pages) |
 > | Axon -- All Pages | Page View | (no filter — fires on all pages) |
-> | Axon -- View Item Event | Custom Event | `view_item` *(or `view_item_stape` / `dl_view_item` if detected)* |
+> | Axon -- View Item Event | Custom Event | `view_item` *(or `view_item_stape` / `dl_view_item` / `axon_view_item` if detected)* |
 > | Axon -- Add to Cart Event | Custom Event | `add_to_cart` *(or detected variant)* |
-> | Axon -- Checkout Page | Page View | URL contains `/checkout` *(`gtm-only` only)* |
-> | Axon -- Order Confirmation | Page View | URL contains `/thank` or `/order-received` *(`gtm-only` only)* |
+> | Axon -- Checkout Page | Page View | URL contains `/checkout` *(`gtm-only`, URL-based platforms)* |
+> | Axon -- Order Confirmation | Page View | URL contains `/thank` or `/order-received` *(`gtm-only`, URL-based platforms)* |
+>
+> On **Shopline / Shoplazza** (gtag-bridge), the last two are Custom Event triggers instead — **Axon -- Begin Checkout Event** (`axon_begin_checkout`) and **Axon -- Purchase Event** (`axon_purchase`) — plus an **Axon -- gtag dataLayer Bridge** tag. That's expected.
 >
 > For lead-gen, you'll see Axon -- Generate Lead Event (Custom Event: `generate_lead`) instead of the ecommerce triggers.
 >
@@ -310,19 +324,45 @@ Tell the advertiser:
 >
 > Pin it to your Chrome toolbar, then walk your funnel with it open."
 
-Walk them through:
-1. Homepage → confirm **Page View** fires.
-2. Product page → confirm **View Item** fires.
-3. Add to Cart → confirm **Add to Cart** fires.
-4. Shopify headless only: complete a test order → confirm **Purchase** fires on the order confirmation page.
+Walk them through these steps, in order:
+1. Homepage → look for **Page View**.
+2. Product page → look for **View Item**.
+3. Add to Cart → look for **Add to Cart**.
+4. Begin checkout → look for **Begin Checkout**.
+5. **Test purchase (all tracks).** Have them place a real test order and then cancel/refund it — they work at the company, so they can. Look for **Purchase** on the order confirmation page. This is the only way to verify purchase end-to-end; the headless `purchase` (Shopify App) and the `gtm-only` / gtag-bridge `purchase` all need a real order to fire.
 
-Interpret results:
-- **Green** — event fired with all required fields.
-- **Orange** — event fired but a recommended field is missing (`image_url`, `item_variant_id`, or `item_category_id`). Pixel works, but catalog ads won't serve. Tell them: "To unlock catalog ads, ask your dev to add [missing fields] to the dataLayer."
-- **Red** — a required field is missing or payload malformed. Click the event to see exactly what's missing.
-- **Not shown** — event didn't fire. Check trigger, URL pattern, or dataLayer event name.
+#### Collecting results — tap-only, no typing
 
-**Setup is complete when page_view, view_item, and add_to_cart show green or orange** (plus purchase on `shopify-headless`).
+**Do not ask the advertiser to type, paste, or fill in a template.** Pixel Helper shows a colored dot per event; capture each via the **multiple-choice question tool** (`AskUserQuestion`), one event at a time as they complete each step. For each event, present these four options (single-select):
+
+- `🟢 Green — fired correctly`
+- `🟠 Orange — fired, missing a field`
+- `🔴 Red — error`
+- `⚪ Didn't appear`
+
+Because the picker caps at 4 questions per screen, ask per funnel step (one tap right after they see the dot) rather than all five at once.
+
+**Review & revise (required).** After all five, show a recap of their selections and present a confirm picker: `✅ Yes — all correct` / `✏️ No — I need to fix one`. If they pick **No**, present a tap-list of the five events (split across the picker's question limit), re-open the 🟢/🟠/🔴/⚪ picker only for the ones they flag, update the recap, and show the review again. **Loop until they tap ✅** — nothing is final until then, so a mis-tap is always recoverable.
+
+Interpret each result:
+- **🟢 Green** — fired with all required fields.
+- **🟠 Orange** — fired but a recommended field is missing (`image_url`, `item_variant_id`, or `item_category_id`). Pixel works, but catalog ads won't serve. **Only here** ask them to screenshot that event in Pixel Helper so you can name the exact missing field, then: "To unlock catalog ads, ask your dev to add [field] to the dataLayer."
+- **🔴 Red** — a required field is missing or payload malformed. Ask for a screenshot of that event to see what's missing.
+- **⚪ Didn't appear** — event didn't fire. Check trigger, URL pattern, or dataLayer event name.
+
+**Setup is complete when page_view, view_item, add_to_cart, begin_checkout, and purchase are green or orange** (purchase confirmed via the test order above).
+
+### Confirm Axon is receiving the events (server-side)
+
+The Pixel Helper confirms events **fire** in the browser. To confirm Axon is actually **receiving and counting** them, have the advertiser check the **Axon Ads Manager dashboard** for the event activity. Collect this as a tap-only `AskUserQuestion` too:
+
+- `Yes — I can see the events`
+- `Not yet — it's still within ~30 min`
+- `No — nothing after 30+ min`
+
+> **Note:** the dashboard can take **up to ~30 minutes** to reflect incoming events. A still-loading dashboard right after setup is **not** a broken setup — the Pixel Helper (real-time) is the immediate check; the dashboard is the authoritative "Axon is receiving it" confirmation once it catches up.
+
+This split matters: an event can fire green in Pixel Helper but still be deduped or blocked server-side, so the dashboard is the source of truth for "it's actually landing." We don't have a programmatic way to read this — it's the advertiser checking their own dashboard.
 
 ---
 

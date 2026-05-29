@@ -78,6 +78,12 @@ export class GTMClient {
     return this._paginate(`/accounts/${accountId}/user_permissions`, 'userPermission');
   }
 
+  // ---------- Container ops ----------
+
+  async createContainer(accountId, { name, usageContext = ['web'] } = {}) {
+    return this._request('POST', `/accounts/${accountId}/containers`, { name, usageContext });
+  }
+
   // ---------- Workspace ops ----------
 
   async createWorkspace(accountId, containerId, { name, description } = {}) {

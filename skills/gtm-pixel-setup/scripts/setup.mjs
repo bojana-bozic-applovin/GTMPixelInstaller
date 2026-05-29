@@ -8,7 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { ensureToken } from './oauth.mjs';
 import { GTMClient } from './gtm-client.mjs';
-import { detectSite } from './detect-site.mjs';
+import { detectSite, verifyContainerOnSite } from './detect-site.mjs';
 import * as T from './tag-templates.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -59,6 +59,8 @@ function parseArgs(argv) {
     else if (a === '--atc-hook') args.atcHook = true;
     else if (a === '--dry-run') args.dryRun = true;
     else if (a === '--lead-gen') args.leadGen = true;
+    else if (a === '--create-container') args.createContainer = true;
+    else if (a === '--skip-snippet-check') args.skipSnippetCheck = true;
     else { stderr(`Unknown arg: ${a}`); process.exit(64); }
   }
   return { mode: 'install', ...args };
@@ -79,6 +81,9 @@ Modes:
 Options:
   --account-id <id>
   --container-id <id>
+  --public-id <GTM-XXXX>          Target an existing container by public ID
+  --create-container              No GTM on the site? Create a new container (asks which account)
+  --skip-snippet-check            Skip the post-paste "is the GTM snippet live?" re-check
   --cleanup replace|skip|prompt   How to handle existing Axon tags
   --event-names-json <path>       Use sniffer output to tune dataLayer naming
   --atc-hook                      Also install the /cart/add XHR hook tag
@@ -236,6 +241,57 @@ XMLHttpRequest.prototype.send=function(){var xhr=this;if(xhr.__axM==='POST'&&rx.
 </script>`;
 }
 
+// Ask 1: custom site with no GTM installed. Create a Web container in the
+// advertiser's account (asking which account if there's more than one), then
+// hand back the on-page snippet for them to paste. Dies with a need_input.
+async function handleCreateContainer(gtm, site, args) {
+  const accounts = await gtm.listAccounts();
+  let account;
+  if (args.accountId) {
+    account = accounts.find((a) => String(a.accountId) === String(args.accountId));
+    if (!account) {
+      die({ status: 'error', error: { kind: 'account_not_found', message: `GTM account ${args.accountId} not found for this Google login.` }, detected: site }, 2);
+    }
+  } else if (accounts.length === 1) {
+    account = accounts[0];
+  } else if (accounts.length === 0) {
+    die({ status: 'error', error: { kind: 'no_gtm_account', message: 'This Google account has no GTM accounts. Create one at tagmanager.google.com first.' }, detected: site }, 2);
+  } else {
+    die({
+      status: 'need_input',
+      needInput: {
+        kind: 'select_account',
+        message: 'Which GTM account should I create the new container in?',
+        options: accounts.map((a) => ({ accountId: a.accountId, accountName: a.name })),
+      },
+      detected: site,
+      retryHint: 'Re-run with --create-container --account-id <id>',
+    }, 10);
+  }
+
+  let hostname = site.siteUrl;
+  try { hostname = new URL(site.siteUrl).hostname; } catch {}
+  const name = `${hostname} (Axon)`.slice(0, 100);
+  stderr(`   creating GTM Web container "${name}" in account "${account.name}"...`);
+  const container = await gtm.createContainer(account.accountId, { name, usageContext: ['web'] });
+  const snippet = T.gtmInstallSnippet(container.publicId);
+  die({
+    status: 'need_input',
+    needInput: {
+      kind: 'paste_snippet',
+      message: `Created GTM container ${container.publicId} in account "${account.name}". Paste this snippet into your site, then we'll confirm it's live and finish setup.`,
+      publicId: container.publicId,
+      accountId: account.accountId,
+      containerId: container.containerId,
+      snippet,
+      spaKind: site.spaKind,
+      platform: site.platform,
+    },
+    detected: site,
+    retryHint: `After pasting, re-run with --public-id ${container.publicId}`,
+  }, 10);
+}
+
 async function install(args) {
   // 1. Load OAuth config
   stderr('[1/8] Loading OAuth config...');
@@ -272,6 +328,15 @@ async function install(args) {
 
   // 3. Find target container
   stderr('[3/8] Matching GTM container...');
+
+  // Custom site, advertiser opted to create a container — do it and hand back the snippet.
+  if (args.createContainer) {
+    await handleCreateContainer(gtm, site, args);
+  }
+
+  // What we actually saw in the page source, before we fold in a manually-supplied
+  // ID — used to decide whether to re-check that a pasted snippet is live.
+  const detectedOnSite = [...site.gtmContainerIds];
   if (args.publicId) {
     const id = args.publicId.toUpperCase().startsWith('GTM-') ? args.publicId.toUpperCase() : `GTM-${args.publicId.toUpperCase()}`;
     if (!site.gtmContainerIds.includes(id)) site.gtmContainerIds.push(id);
@@ -282,16 +347,16 @@ async function install(args) {
   if (Array.isArray(matchesOrPair)) {
     if (matchesOrPair.length === 0) {
       if (!site.gtmContainerIds.length) {
-        // Can't auto-detect — ask the user to provide the container ID manually
+        // No GTM on the site. Offer to create one, or take an existing ID.
         die({
           status: 'need_input',
           needInput: {
-            kind: 'container',
-            message: 'Could not detect a GTM container ID on the site. Please provide your GTM container ID (e.g. GTM-XXXXXX).',
-            options: [],
+            kind: 'no_gtm_container',
+            message: 'No GTM container was found on the site. I can create a new one in your Google Tag Manager account for you to install, or you can provide an existing GTM container ID.',
+            options: ['create', 'provide'],
           },
           detected: site,
-          retryHint: 'Re-run with --public-id <GTM-XXXXXX>',
+          retryHint: 'Re-run with --create-container (to create one) or --public-id <GTM-XXXXXX> (to use an existing one)',
         }, 10);
       }
       die({
@@ -338,6 +403,29 @@ async function install(args) {
       },
       detected: site,
     }, 3);
+  }
+
+  // Ask 1: if we're targeting a container that wasn't in the page source (just
+  // created, or freshly pasted), confirm the snippet is actually live before we
+  // build tags into a container the site can't load. Overridable, since some
+  // sites inject GTM in ways we can't read from static HTML.
+  if (args.publicId && !detectedOnSite.includes(container.publicId) && !args.skipSnippetCheck) {
+    stderr(`   confirming GTM snippet is live on ${site.siteUrl}...`);
+    const check = await verifyContainerOnSite(args.siteUrl, container.publicId);
+    if (!check.found) {
+      die({
+        status: 'need_input',
+        needInput: {
+          kind: 'snippet_not_detected',
+          message: `Couldn't find ${container.publicId} on ${site.siteUrl} yet. If you just pasted the snippet, publish/clear cache and retry. If GTM is installed in a way we can't read from page source, you can skip this check.`,
+          publicId: container.publicId,
+          idsFound: check.ids,
+        },
+        detected: site,
+        retryHint: `Re-run with --public-id ${container.publicId} once it's live, or add --skip-snippet-check to bypass`,
+      }, 10);
+    }
+    stderr(`   ✓ GTM snippet confirmed on site`);
   }
 
   // Track + event naming decisions are made up-front so --dry-run can short-circuit before any writes.

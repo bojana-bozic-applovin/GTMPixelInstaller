@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 import { detectPlatform, usesGtagEcommerceFor } from '../scripts/detect-site.mjs';
-import { gtagBridgeTagHtml } from '../scripts/tag-templates.mjs';
+import { gtagBridgeTagHtml, gtmInstallSnippet } from '../scripts/tag-templates.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const fixture = (name) => readFileSync(join(__dirname, 'fixtures', name), 'utf8');
@@ -95,4 +95,18 @@ test('bridge ignores non-ecommerce gtag events and avoids re-processing its own 
   window.dataLayer.push(['config', 'G-XXXX', {}]);                         // not an event
   const bridgedCount = window.dataLayer.filter((e) => e && typeof e.event === 'string' && e.event.startsWith('axon_')).length;
   assert.equal(bridgedCount, 0);
+});
+
+// ---- GTM install snippet (custom-site flow) ----
+test('gtmInstallSnippet embeds the container id in head + noscript body', () => {
+  const { head, body } = gtmInstallSnippet('GTM-ABC123');
+  assert.match(head, /gtm\.js\?id='\+i/);            // standard async loader
+  assert.match(head, /'GTM-ABC123'\);<\/script>/);    // id injected into the IIFE
+  assert.match(body, /ns\.html\?id=GTM-ABC123/);      // noscript iframe carries the id
+});
+
+test('gtmInstallSnippet rejects anything that is not a GTM-* id', () => {
+  for (const bad of ['', 'not-a-gtm-id', 'G-12345', 'gtm-lowercase', 'GTM-<script>']) {
+    assert.throws(() => gtmInstallSnippet(bad), /invalid container id/);
+  }
 });

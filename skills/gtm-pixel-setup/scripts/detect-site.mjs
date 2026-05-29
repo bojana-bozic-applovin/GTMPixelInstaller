@@ -184,6 +184,16 @@ async function playwrightScan(url, errors) {
   }
 }
 
+// Lightweight re-check used by the custom-site flow to confirm a freshly-pasted
+// GTM snippet is now live on the page, without re-running the full detection.
+export async function verifyContainerOnSite(siteUrl, publicId) {
+  const errors = [];
+  const canonical = canonicalizeUrl(siteUrl);
+  const { html } = await fetchHtml(canonical, errors);
+  const ids = html ? extractGtmIds(html) : [];
+  return { found: ids.includes(String(publicId).toUpperCase()), ids, errors };
+}
+
 export async function detectSite(siteUrl) {
   const errors = [];
   const canonical = canonicalizeUrl(siteUrl);
