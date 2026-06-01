@@ -122,6 +122,6 @@ node -e "import('./scripts/detect-site.mjs').then(m=>m.detectSite('https://examp
 node scripts/detect-repo.mjs --repo-path .   # self-built repo scan
 ```
 
-**Self-built frontend (GTM in code):** [README-self-built.md](./README-self-built.md)
+**Self-built frontend (GTM in code):** [SELF_BUILT_GTM.md](./SELF_BUILT_GTM.md) · overview in [docs/self-built-frontend.md](../../docs/self-built-frontend.md)
 
 v1.2 — 2026-05-29

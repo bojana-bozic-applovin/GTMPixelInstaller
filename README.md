@@ -1,4 +1,4 @@
-# Axon Pixel Installer
+# GTM Pixel Installer
 
 Install the Axon tracking pixel on your site in ~5 minutes with Claude Code and
 the Google Tag Manager API. No Chrome extension required.

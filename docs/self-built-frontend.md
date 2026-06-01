@@ -27,4 +27,13 @@ cd skills/gtm-pixel-setup
 node scripts/detect-repo.mjs --repo-path /path/to/frontend
 ```
 
-More detail: [`skills/gtm-pixel-setup/README-self-built.md`](../skills/gtm-pixel-setup/README-self-built.md)
+No changes to `setup.mjs` are required for this flow — it reuses the existing `--create-container` and `--public-id` options.
+
+## Docs
+
+| File | Purpose |
+|------|---------|
+| [`SELF_BUILT_GTM.md`](../skills/gtm-pixel-setup/SELF_BUILT_GTM.md) | Agent workflow (start here) |
+| [`references/repo-analysis-checklist.md`](../skills/gtm-pixel-setup/references/repo-analysis-checklist.md) | Pre-edit repo scan |
+| [`references/gtm-install-by-stack.md`](../skills/gtm-pixel-setup/references/gtm-install-by-stack.md) | Stack-specific GTM install |
+| [`references/datalayer-events.md`](../skills/gtm-pixel-setup/references/datalayer-events.md) | Event payloads |
