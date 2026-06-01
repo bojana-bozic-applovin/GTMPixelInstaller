@@ -59,3 +59,5 @@ recommends one test order for `purchase`, then has you check the **Axon dashboar
 | "Axon Pixel already installed" in Ads Manager | Domain linked to another Axon account — ticket at [support.axon.ai](https://support.axon.ai) |
 
 Full skill reference: [`skills/gtm-pixel-setup/README.md`](skills/gtm-pixel-setup/README.md)
+
+**Self-built frontend (install GTM in code):** [`docs/self-built-frontend.md`](docs/self-built-frontend.md)

@@ -119,6 +119,9 @@ gtm-pixel-setup/
 npm test                 # node:test suite (detection, bridge, snippet)
 node scripts/setup.mjs --help
 node -e "import('./scripts/detect-site.mjs').then(m=>m.detectSite('https://example.com')).then(r=>console.log(r))"
+node scripts/detect-repo.mjs --repo-path .   # self-built repo scan
 ```
+
+**Self-built frontend (GTM in code):** [README-self-built.md](./README-self-built.md)
 
 v1.2 — 2026-05-29
