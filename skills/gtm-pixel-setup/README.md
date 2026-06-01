@@ -9,7 +9,7 @@ Given an Axon event key and site URL:
 1. **Pre-flight** detection (platform, GTM container, dataLayer naming) — confirms before writing.
 2. **OAuth** into the advertiser's Google account (local-loopback).
 3. **Detects** platform (Shopify, WooCommerce, BigCommerce, Magento, Shopline, Shoplazza, custom), GTM container, and Stape / Elevar / GA4-gtag dataLayer.
-4. **No GTM on the site?** Offers to create a Web container and returns an install snippet to paste, then re-checks it's live before continuing.
+4. **No GTM on the site?** Offers to create a Web container, then either installs GTM directly in the frontend repo (when a `REPO_PATH` is provided — see [SELF_BUILT_GTM.md](./SELF_BUILT_GTM.md)) or returns an install snippet to paste, and re-checks it's live before continuing.
 5. **Creates** triggers + Custom HTML tags in a fresh workspace and publishes.
 6. **Hands off** for Shopify App install (`shopify-headless`) and tap-through verification.
 
@@ -37,8 +37,8 @@ Custom/unrecognized naming → hands off to the dev with the standard names and 
 ## Before you start
 - **Axon event key** (Ads Manager → Account Settings → Keys) and your **site URL**.
 - **Google account** with Edit + Publish on a GTM **Web** container. No container?
-  The skill can create one (it asks first); you'll paste the returned snippet into
-  your site to finish.
+  The skill can create one (it asks first); then it installs GTM in your frontend
+  code if you share the repo, or returns a snippet for you to paste.
 - **Node 20+** (auto-checked/installed).
 - **Verification:** Chrome for the Axon Pixel Helper; a test order to confirm
   `purchase` is recommended.

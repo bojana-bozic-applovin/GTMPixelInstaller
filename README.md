@@ -7,8 +7,9 @@ the Google Tag Manager API. No Chrome extension required.
 - **Axon event key** — Axon Ads Manager → Account Settings → Keys
 - **Your domain URL**
 - **Edit + Publish access to your GTM container.** No GTM yet? Claude can create
-  one — you'll just paste a short snippet into your site. Step-by-step
-  instructions are provided.
+  one — then, if you share your frontend code repo, it installs GTM directly in
+  the code for you (see [Self-built frontend](docs/self-built-frontend.md));
+  otherwise it hands you a short snippet to paste. Step-by-step either way.
 - **Claude Code** + **Node.js 20+** (Claude installs Node if it's missing)
 - **To verify:** Chrome (for the Axon Pixel Helper); placing one test order to
   confirm `purchase` is recommended.
@@ -17,8 +18,9 @@ the Google Tag Manager API. No Chrome extension required.
   - **Admin access to your Shopify store** — to install the Axon Shopify App
     (Claude gives you the link during setup; it handles checkout + purchase).
   - **Headless storefronts (Hydrogen/Next.js) with no GTM yet:** Claude creates
-    the container and hands over the exact snippet — you or your developer add it
-    to the site's code and deploy.
+    the container, then installs GTM directly in your frontend code if you give it
+    repo access (it scans the repo, makes the edits, and you deploy) — otherwise it
+    hands over the exact snippet for you or your developer to add.
 
 ## How to run it
 1. Open this project in Claude Code.
@@ -51,7 +53,7 @@ recommends one test order for `purchase`, then has you check the **Axon dashboar
 ## Troubleshooting
 | Symptom | Fix |
 |---|---|
-| No GTM on your site | Claude can create a container and give you a snippet to paste |
+| No GTM on your site | Claude creates a container, then installs GTM in your code (if you share the repo) or gives you a snippet to paste |
 | "App isn't verified" in Google sign-in | Advanced → Go to app (unsafe) |
 | Wrong container detected | Give Claude your `GTM-XXXXXX` ID |
 | Events not firing after publish | Claude runs the dataLayer sniffer |
@@ -59,5 +61,3 @@ recommends one test order for `purchase`, then has you check the **Axon dashboar
 | "Axon Pixel already installed" in Ads Manager | Domain linked to another Axon account — ticket at [support.axon.ai](https://support.axon.ai) |
 
 Full skill reference: [`skills/gtm-pixel-setup/README.md`](skills/gtm-pixel-setup/README.md)
-
-**Self-built frontend (install GTM in code):** [`docs/self-built-frontend.md`](docs/self-built-frontend.md)
