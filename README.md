@@ -50,11 +50,8 @@ Shoplazza, etc.) don't need this.
 - You can share the frontend code repository (a local path or clone URL).
 
 **Two ways it can go**
-- **You share the repo → fully automated.** Claude scans the repo, creates a GTM
-  container, edits the right files to install GTM (and adds standard GA4 `dataLayer`
-  events if they're missing), then you deploy.
-- **You can't share the repo → snippet paste.** Claude creates the container and
-  hands you the exact snippet to add yourself, then re-checks it's live.
+- **Share the repo → fully automated** (Claude edits your code).
+- **Can't share the repo → snippet paste** (the semi-automated fallback).
 
 Either way, once GTM is on the site Claude resumes the normal flow — building and
 publishing the Axon tags.
