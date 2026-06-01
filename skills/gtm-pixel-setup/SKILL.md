@@ -1,6 +1,6 @@
 ---
 name: gtm-pixel-setup
-description: "Install the Axon tracking pixel via the Google Tag Manager API in ~5 minutes. Preferred over the manual Chrome-based flow. Handles all platforms: Shopify (hosted or self-hosted checkout), WooCommerce, BigCommerce, Magento, custom. Creates all required triggers, tags, and publishes. Use when an advertiser needs Axon pixel setup via GTM, mentions 'install Axon pixel', 'GTM pixel setup', 'set up tracking tags', or any request to automate GTM tag creation for Axon."
+description: "Install the Axon tracking pixel via the Google Tag Manager API in ~5 minutes. Preferred over the manual Chrome-based flow. Handles all platforms: Shopify (hosted or self-hosted checkout), WooCommerce, BigCommerce, Magento, custom. Creates all required triggers, tags, and publishes. Self-built frontends with no GTM: follow SELF_BUILT_GTM.md to install GTM in code. Use when an advertiser needs Axon pixel setup via GTM, mentions 'install Axon pixel', 'GTM pixel setup', 'set up tracking tags', or any request to automate GTM tag creation for Axon."
 metadata:
   user_invocable: true
 ---
@@ -148,6 +148,16 @@ Store as `SITE_TYPE` (`ecommerce` or `lead-gen`). If lead-gen, add `--lead-gen` 
 
 You do not need to ask about platform, SPA, checkout type, or URL patterns — the detector figures those out.
 
+### Self-built storefront (optional)
+
+If the advertiser says their site is **custom-built** (Next.js, React, Vue, etc.) — not Shopify Liquid, WooCommerce, Shopline, or Shoplazza — ask:
+
+> "Do you have access to the frontend code repository? I can install GTM there for you."
+
+If yes, collect `REPO_PATH` and follow **[SELF_BUILT_GTM.md](SELF_BUILT_GTM.md)** (create container → analyze repo → install GTM → deploy → resume Phase 2 below).
+
+Also follow SELF_BUILT_GTM.md when setup returns `no_gtm_container`, `paste_snippet`, or `snippet_not_detected` **and** the advertiser wants repo-based install instead of manual paste-only.
+
 ---
 
 ## Phase 2: Run the setup script
@@ -219,7 +229,7 @@ If `status === "need_input"`:
   - **Create** → re-run with `--create-container`.
   - **Existing ID** → re-run with `--public-id <GTM-XXXXXX>`.
 - `kind: "select_account"` — creating a container but the login has more than one GTM account. List `options[].accountName` and ask which to create it in. Re-run with `--create-container --account-id <id>`.
-- `kind: "paste_snippet"` — we just created container `needInput.publicId`. Give the advertiser the snippet to paste, **tailored to their stack** using `needInput.spaKind` / `detected.platform`:
+- `kind: "paste_snippet"` — we just created container `needInput.publicId`. If advertiser provided **`REPO_PATH`**, follow **[SELF_BUILT_GTM.md](SELF_BUILT_GTM.md)** to install GTM in code (do not ask them to paste raw HTML manually). Otherwise give the advertiser the snippet to paste, **tailored to their stack** using `needInput.spaKind` / `detected.platform`:
   - Present `needInput.snippet.head` ("paste immediately after the opening `<head>` tag, as high as possible") and `needInput.snippet.body` ("paste immediately after the opening `<body>` tag").
   - If `spaKind === "next"`: "In Next.js, add it via `@next/third-parties/google` `<GoogleTagManager gtmId="…" />` in `app/layout.tsx`, or a `<Script>` in the root layout."
   - If `spaKind === "nuxt"`: "In Nuxt, use the `@zadigetvoltaire/nuxt-gtm` module or add it in `nuxt.config` / `app.vue`."
@@ -415,4 +425,5 @@ After all required events are verified, offer this attribution improvement:
 - **Dry-run before destructive changes**: if existing Axon tags are detected, always ask before replacing.
 - **Workspaces are cheap** — always create a fresh one. Never edit the Default Workspace in place.
 - **Shopify App install is manual** — don't try to automate it.
+- **Self-built GTM in code** — follow [SELF_BUILT_GTM.md](SELF_BUILT_GTM.md); do not modify setup scripts for that flow.
 - **Never expose internals** — no JSON, no exit codes, no stack traces, no stderr lines. Translate everything into plain friendly language.
